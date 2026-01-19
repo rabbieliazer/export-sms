@@ -1,0 +1,7 @@
+{
+  "name": "SMS Analyzer",
+  "description": "A sophisticated tool to convert SMS XML backups into clean, visual chat interfaces with AI-powered analysis and thread summarization.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
