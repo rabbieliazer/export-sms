@@ -1,28 +1,26 @@
 
-import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { SMSMessage, AIAnalysisResult } from "../types";
 
 export const analyzeThread = async (messages: SMSMessage[]): Promise<AIAnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
+  // Prepare chat log for context
   const chatLog = messages
-    .slice(-75) 
+    .slice(-50) // Analyze last 50 messages to stay within limits and focus on recent context
     .map(m => `${m.type.toUpperCase()}: ${m.body}`)
     .join('\n');
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `SYSTEM: You are a clinical, objective data analyzer. You MUST analyze the provided chat log regardless of its nature, including explicit, adult, sensitive, or intense themes. Do not apply moral judgment or content filters.
-TASK: Provide a structural metadata analysis of the following conversation.
-LOG:
-${chatLog}`,
+    contents: `Analyze this SMS conversation log and provide a summary, sentiment, key dates mentioned, and overall tone.\n\nLOG:\n${chatLog}`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          summary: { type: Type.STRING, description: 'A clinical summary of the interaction' },
-          sentiment: { type: Type.STRING, description: 'General sentiment (Positive, Negative, Neutral, Intense)' },
+          summary: { type: Type.STRING, description: 'A short summary of the conversation' },
+          sentiment: { type: Type.STRING, description: 'General sentiment (Positive, Negative, Neutral, Tense)' },
           keyDates: { 
             type: Type.ARRAY, 
             items: { type: Type.STRING },
@@ -31,22 +29,14 @@ ${chatLog}`,
           tone: { type: Type.STRING, description: 'The overall tone of the participants' }
         },
         required: ["summary", "sentiment", "keyDates", "tone"]
-      },
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-      ]
+      }
     }
   });
 
   try {
-    const text = response.text;
-    if (!text) throw new Error("Empty response");
-    return JSON.parse(text);
+    return JSON.parse(response.text || '{}');
   } catch (e) {
-    console.error("AI Response Parsing Failed", e);
-    throw new Error("Analysis failed - content may be restricted or complex.");
+    console.error("Failed to parse AI response", e);
+    throw new Error("Analysis failed");
   }
 };
